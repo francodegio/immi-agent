@@ -1,0 +1,12 @@
+langchain
+sentence-transformers
+transformers
+hf_transfer
+faiss-gpu
+sentence-transformers
+unstructured
+fastapi
+pydantic
+uvicorn
+numpy==1.23.3
+huggingface-hub==0.17.1
