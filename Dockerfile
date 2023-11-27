@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.0.0-devel-ubuntu20.04
+FROM nvidia/cuda:12.0.0-devel-ubuntu20.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HUGGINGFACE_HUB_ENABLE_HF_TRANSFER=1
@@ -28,7 +28,7 @@ RUN find /usr/local/ \( -type d -a -name test -o -name tests \) -o \( -type f -a
 
 
 #### Lean image ####
-FROM nvidia/cuda:12.0.0-base-ubuntu20.04 
+FROM nvidia/cuda:12.0.0-base-ubuntu20.04
 COPY --from=builder /usr/local/lib/python3.10/dist-packages /usr/local/lib/python3.10/dist-packages
 COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 COPY --from=builder /root/.cache/huggingface /root/.cache/huggingface
