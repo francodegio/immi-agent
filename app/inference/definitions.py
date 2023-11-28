@@ -18,7 +18,7 @@ from pydantic import BaseModel
 ######################## GLOBAL CONFIGURATION ########################
 CONFIG = OmegaConf.create(
     yaml.load(
-        open("../config/model.yaml"),
+        open("config/model.yaml"),
         Loader=yaml.FullLoader
     )
 )
