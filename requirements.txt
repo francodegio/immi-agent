@@ -8,5 +8,6 @@ unstructured
 fastapi
 pydantic
 uvicorn
+omegaconf
 numpy==1.23.3
 huggingface-hub==0.17.1
