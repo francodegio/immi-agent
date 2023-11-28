@@ -16,4 +16,4 @@ vectorstore:
       device: cuda
   text_splitter:
     chunk_size: 2048
-    overlap: 20
+    chunk_overlap: 20
