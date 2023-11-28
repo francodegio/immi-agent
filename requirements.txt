@@ -1,4 +1,5 @@
 langchain
+langchain-experimental
 sentence-transformers
 transformers
 hf_transfer
