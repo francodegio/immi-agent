@@ -8,6 +8,7 @@ llm:
     n_batch: 512
     n_ctx: 2048
     verbose: True
+    streaming: False
 
 vectorstore:
   model:
@@ -17,3 +18,11 @@ vectorstore:
   text_splitter:
     chunk_size: 2048
     chunk_overlap: 20
+
+chain:
+  prompts:
+    CONDENSE_QUESTION_PROMPT: ./config/condense_question_prompt.txt
+    ANSWER_QUESTION_PROMPT: ./config/answer_prompt.txt
+  similarity:
+    score_threshold: 0.5
+    k: 2
