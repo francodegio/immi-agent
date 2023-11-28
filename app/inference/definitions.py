@@ -80,11 +80,10 @@ class ChatBot:
         )
 
     def _combine_documents(
-        docs, 
-        document_prompt=self.DEFAULT_DOCUMENT_PROMPT,
-        document_separator="\n\n"
-    ):
-        doc_strings = [format_document(doc, document_prompt) for doc in docs]
+            docs, 
+            document_separator="\n\n"
+        ):
+        doc_strings = [format_document(doc, self.DEFAULT_DOCUMENT_PROMPT) for doc in docs]
         return document_separator.join(doc_strings)
 
     def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
