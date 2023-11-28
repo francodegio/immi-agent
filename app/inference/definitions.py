@@ -10,9 +10,18 @@ from langchain.document_loaders import DirectoryLoader
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.llms import LlamaCpp
 from langchain.prompts import PromptTemplate
+from langchain.schema import AIMessage, HumanMessage, format_document
+from langchain.schema.output_parser import StrOutputParser
+from langchain.schema.runnable import (
+    RunnableBranch,
+    RunnableLambda,
+    RunnableMap,
+    RunnablePassthrough,
+)
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 
 
 ######################## GLOBAL CONFIGURATION ########################
@@ -22,34 +31,28 @@ CONFIG = OmegaConf.create(
         Loader=yaml.FullLoader
     )
 )
-callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 
-template = """### Human: {question}
-
-### Agent: Let's work this out in a step by step way to be sure we have the right answer.
-### Response: {answer}"""
-
-prompt = PromptTemplate(template=template, input_variables=["question"])
 
 ############################ DEFINITIONS ############################
+def load_txt(path):
+    with open(path, 'r') as f:
+        return f.read()
+
+
 class ChatBot:
 
-    def __init__(self):
-        self._chain = self.create_chain()
-
+    def __init__(self, config=CONFIG):
+        self.CONFIG = config
+        self.create_chain()
 
     def _load_model(self):
-        global CONFIG
-        global callback_manager
-        config = CONFIG.llm
-        return LlamaCpp(
-            callback_manager=callback_manager,
-            **config.runtime_args
-        )
+        config = self.CONFIG.llm
+        llm = LlamaCpp(**config.runtime_args)
+        self.llm = llm
+        self.model = Llama2Chat(llm=llm)
 
     def _load_vectorstore(self):
-        global CONFIG
-        config = CONFIG.vectorstore
+        config = self.CONFIG.vectorstore
         loader = DirectoryLoader('/data', glob="**/*.md")
         documents = loader.load()
         text_splitter = RecursiveCharacterTextSplitter(
@@ -57,22 +60,92 @@ class ChatBot:
         )
         all_splits = text_splitter.split_documents(documents)
         embeddings = HuggingFaceEmbeddings(**config.model)
-        
-        return FAISS.from_documents(all_splits, embeddings)
+        self.vectorstore = FAISS.from_documents(all_splits, embeddings)
+        self.retriever = self.vectorstore.as_retriever()
 
-    def create_chain(self):
-        llm = self._load_model()
-        vectorstore = self._load_vectorstore()
-        chain = ConversationalRetrievalChain.from_llm(
-            llm,
-            vectorstore.as_retriever(),
-            return_source_documents=True
+    def _build_templates(self):
+        config = self.CONFIG.chain
+        cqp = load_txt(config.chain.CONDENSE_QUESTION_PROMPT)
+        ap = load_txt(config.chain.ANSWER_PROMPT)
+        self.CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(cqp)
+        self.DEFAULT_DOCUMENT_PROMPT = PromptTemplate.from_template(
+            template="{page_content}"
         )
-        return chain
+        self.ANSWER_PROMPT = ChatPromptTemplate.from_messages(
+            [
+                ("system", ap),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("user", "{question}"),
+            ]
+        )
+
+    def _combine_documents(
+        docs, 
+        document_prompt=self.DEFAULT_DOCUMENT_PROMPT,
+        document_separator="\n\n"
+    ):
+        doc_strings = [format_document(doc, document_prompt) for doc in docs]
+        return document_separator.join(doc_strings)
+
+    def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
+        buffer = []
+        for human, ai in chat_history:
+            buffer.append(HumanMessage(content=human))
+            buffer.append(AIMessage(content=ai))
+        return buffer
+
+    def _create_chain(self):
+        config = self.CONFIG.chain.similarity
+        
+        if not hasattr(self, "CONDENSE_QUESTION_PROMPT"):
+            self._build_templates()
+        if not hasattr(self, "llm"):
+            self._load_model()
+        if not hasattr(self, "vectorstore"):
+            self._load_vectorstore()
+        
+        _search_query = RunnableBranch(
+            (
+                RunnableLambda(
+                    lambda x: bool(x.get("chat_history"))
+                ).with_config(
+                    run_name="HasChatHistoryCheck"
+                ),
+                RunnablePassthrough.assign(
+                    chat_history=lambda x: self._format_chat_history(x["chat_history"])
+                )
+                | self.CONDENSE_QUESTION_PROMPT
+                | self.model
+                | StrOutputParser(),
+            ),
+            RunnableLambda(itemgetter("question")),
+        )
+
+        _inputs = RunnableMap(
+            {
+                "question": lambda x: x["question"],
+                "chat_history": lambda x: self._format_chat_history(x["chat_history"]),
+                "context": self._search_query | self.retriever | self._combine_documents,
+            }
+        ).with_types(input_type=ChatHistory)
+
+        similarity = RunnableMap(
+            {
+                "answer": lambda x: x,
+                "source_documents": RunnableLambda(
+                    lambda x: self.vectorstore.similarity_search_with_relevance_scores(
+                        query=x, k=config.k, score_threshold=config.score_threshold
+                    )
+                )
+            }
+        )
+
+        self.chain =  _inputs | self.ANSWER_PROMPT | self.model | StrOutputParser() | similarity
+
 
     def reply(self, prompt: str, chat_history: Optional[List[Dict]]=None):
         chat_history = [] if chat_history is None else chat_history
-        result = self._chain(
+        result = self.chain.invoke(
             {
                 "question": prompt,
                 "chat_history": chat_history
@@ -86,7 +159,6 @@ class ChatBot:
             ]
         }
 
-    
 ########################### DATA STRUCTURES ###########################
 class Input(BaseModel):
     prompt: str
@@ -95,3 +167,7 @@ class Input(BaseModel):
 class Output(BaseModel):
     answer: str
     source_documents: List[str]
+
+class ChatHistory(BaseModel):
+    chat_history: List[Tuple[str, str]] = Field(..., extra={"widget": {"type": "chat"}})
+    question: str
