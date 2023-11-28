@@ -56,7 +56,7 @@ class ChatBot:
             **config.text_splitter
         )
         all_splits = text_splitter.split_documents(documents)
-        embeddings = HuggingFaceEmbeddings(**config.vectorstore.model)
+        embeddings = HuggingFaceEmbeddings(**config.model)
         
         return FAISS.from_documents(all_splits, embeddings)
 
@@ -71,6 +71,7 @@ class ChatBot:
         return chain
 
     def reply(self, prompt: str, chat_history: Optional[List[Dict]]=None):
+        chat_history = [] if chat_history is None else chat_history
         result = self._chain(
             {
                 "question": prompt,
@@ -80,7 +81,7 @@ class ChatBot:
         return {
             "answer": result["answer"],
             "source_documents": [
-                x.get("metadata") for x 
+                x.metadata.get('source') for x 
                 in result["source_documents"]
             ]
         }
@@ -93,4 +94,4 @@ class Input(BaseModel):
 
 class Output(BaseModel):
     answer: str
-    source_documents: List[Dict] = None
+    source_documents: List[str]

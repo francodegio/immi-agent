@@ -36,7 +36,7 @@ app = FastAPI()
 def warmup():
     try:
         _ = get_model()
-        return "done"
+        return True
     except:
         traceback.print_exc()
         return HTTPException(status_code=500, detail="Internal server error")
@@ -56,16 +56,14 @@ def predict(payload: Input):
         result = chatbot.reply(
             payload.prompt,
             payload.chat_history
-        )
-
-        
+        )        
         print(f"Processed request in {time() - start} seconds")
-        return result
+        return Output(**result)
     except MemoryError as e:
        traceback.print_exc()
-       global _model
-       del _model, model
-       _model = None
+       global _chatbot
+       del _chatbot, chatbot
+       _chatbot = None
        raise HTTPException(status_code=507, detail="Out of Memory")
     except Exception as e2:
         traceback.print_exc()
