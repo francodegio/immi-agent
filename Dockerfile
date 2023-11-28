@@ -45,4 +45,4 @@ COPY --from=builder ./llm.gguf /app/llm.gguf
 
 WORKDIR /app
 
-CMD python3.10 main.py
+CMD streamlit run main.py
