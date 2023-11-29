@@ -1,6 +1,6 @@
 import yaml
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from omegaconf import OmegaConf
 from langchain.callbacks.manager import CallbackManager
@@ -10,6 +10,7 @@ from langchain.document_loaders import DirectoryLoader
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.llms import LlamaCpp
 from langchain.prompts import PromptTemplate
+from langchain.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema import AIMessage, HumanMessage, format_document
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import (
@@ -20,22 +21,19 @@ from langchain.schema.runnable import (
 )
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
-
+from langchain_experimental.chat_models import Llama2Chat
 from pydantic import BaseModel, Field
+from operator import itemgetter
 
 
 ######################## GLOBAL CONFIGURATION ########################
 CONFIG = OmegaConf.create(
-    yaml.load(
-        open("config/model.yaml"),
-        Loader=yaml.FullLoader
-    )
-)
+    yaml.load(open("config/model.yaml"), Loader=yaml.FullLoader))
 
 
 ############################ DEFINITIONS ############################
 def load_txt(path):
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         return f.read()
 
 
@@ -43,7 +41,7 @@ class ChatBot:
 
     def __init__(self, config=CONFIG):
         self.CONFIG = config
-        self.create_chain()
+        self._create_chain()
 
     def _load_model(self):
         config = self.CONFIG.llm
@@ -53,11 +51,9 @@ class ChatBot:
 
     def _load_vectorstore(self):
         config = self.CONFIG.vectorstore
-        loader = DirectoryLoader('/data', glob="**/*.md")
+        loader = DirectoryLoader("/data", glob="**/*.md")
         documents = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(
-            **config.text_splitter
-        )
+        text_splitter = RecursiveCharacterTextSplitter(**config.text_splitter)
         all_splits = text_splitter.split_documents(documents)
         embeddings = HuggingFaceEmbeddings(**config.model)
         self.vectorstore = FAISS.from_documents(all_splits, embeddings)
@@ -79,14 +75,13 @@ class ChatBot:
             ]
         )
 
-    def _combine_documents(
-            docs, 
-            document_separator="\n\n"
-        ):
-        doc_strings = [format_document(doc, self.DEFAULT_DOCUMENT_PROMPT) for doc in docs]
+    def _combine_documents(self, docs, document_separator="\n\n"):
+        doc_strings = [
+            format_document(doc, self.DEFAULT_DOCUMENT_PROMPT) for doc in docs
+        ]
         return document_separator.join(doc_strings)
 
-    def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
+    def _format_chat_history(self, chat_history: List[Tuple[str, str]]) -> List:
         buffer = []
         for human, ai in chat_history:
             buffer.append(HumanMessage(content=human))
@@ -95,23 +90,22 @@ class ChatBot:
 
     def _create_chain(self):
         config = self.CONFIG.chain.similarity
-        
+
         if not hasattr(self, "CONDENSE_QUESTION_PROMPT"):
             self._build_templates()
         if not hasattr(self, "llm"):
             self._load_model()
         if not hasattr(self, "vectorstore"):
             self._load_vectorstore()
-        
+
         _search_query = RunnableBranch(
             (
-                RunnableLambda(
-                    lambda x: bool(x.get("chat_history"))
-                ).with_config(
+                RunnableLambda(lambda x: bool(x.get("chat_history"))).with_config(
                     run_name="HasChatHistoryCheck"
                 ),
                 RunnablePassthrough.assign(
-                    chat_history=lambda x: self._format_chat_history(x["chat_history"])
+                    chat_history=lambda x: self._format_chat_history(
+                        x["chat_history"])
                 )
                 | self.CONDENSE_QUESTION_PROMPT
                 | self.model
@@ -124,7 +118,7 @@ class ChatBot:
             {
                 "question": lambda x: x["question"],
                 "chat_history": lambda x: self._format_chat_history(x["chat_history"]),
-                "context": self._search_query | self.retriever | self._combine_documents,
+                "context": _search_query | self.retriever | self._combine_documents,
             }
         ).with_types(input_type=ChatHistory)
 
@@ -135,38 +129,40 @@ class ChatBot:
                     lambda x: self.vectorstore.similarity_search_with_relevance_scores(
                         query=x, k=config.k, score_threshold=config.score_threshold
                     )
-                )
+                ),
             }
         )
 
-        self.chain =  _inputs | self.ANSWER_PROMPT | self.model | StrOutputParser() | similarity
+        self.chain = (
+            _inputs | self.ANSWER_PROMPT | self.model | StrOutputParser() | similarity
+        )
 
-
-    def reply(self, prompt: str, chat_history: Optional[List[Dict]]=None):
+    def reply(self, prompt: str, chat_history: Optional[List[Dict]] = None):
         chat_history = [] if chat_history is None else chat_history
         result = self.chain.invoke(
-            {
-                "question": prompt,
-                "chat_history": chat_history
-            }
-        )
+            {"question": prompt, "chat_history": chat_history})
         return {
             "answer": result["answer"],
             "source_documents": [
-                x.metadata.get('source') for x 
-                in result["source_documents"]
-            ]
+                x.metadata.get("source") for x in result["source_documents"]
+            ],
         }
+
 
 ########################### DATA STRUCTURES ###########################
 class Input(BaseModel):
     prompt: str
-    chat_history: Optional[List[Dict]] = None 
+    chat_history: Optional[List[Dict]] = None
+
 
 class Output(BaseModel):
     answer: str
     source_documents: List[str]
 
+
 class ChatHistory(BaseModel):
-    chat_history: List[Tuple[str, str]] = Field(..., extra={"widget": {"type": "chat"}})
+    chat_history: List[Tuple[str, str]] = Field(
+        ...,
+        extra={"widget": {"type": "chat"}}
+    )
     question: str
