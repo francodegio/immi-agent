@@ -22,7 +22,7 @@ vectorstore:
 chain:
   prompts:
     CONDENSE_QUESTION_PROMPT: ./config/condense_question_prompt.txt
-    ANSWER_QUESTION_PROMPT: ./config/answer_prompt.txt
+    ANSWER_PROMPT: ./config/answer_prompt.txt
   similarity:
     score_threshold: 0.5
     k: 2
