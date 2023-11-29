@@ -61,8 +61,8 @@ class ChatBot:
 
     def _build_templates(self):
         config = self.CONFIG.chain
-        cqp = load_txt(config.chain.CONDENSE_QUESTION_PROMPT)
-        ap = load_txt(config.chain.ANSWER_PROMPT)
+        cqp = load_txt(config.prompts.CONDENSE_QUESTION_PROMPT)
+        ap = load_txt(config.prompts.ANSWER_PROMPT)
         self.CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(cqp)
         self.DEFAULT_DOCUMENT_PROMPT = PromptTemplate.from_template(
             template="{page_content}"
