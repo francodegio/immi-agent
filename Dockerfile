@@ -45,4 +45,6 @@ COPY --from=builder ./llm.gguf /app/llm.gguf
 
 WORKDIR /app
 
-CMD streamlit run main.py
+ENV STREAMLIT_THEME_BASE="dark"
+
+CMD ["streamlit" "run" "main.py" "--server.port", "7860"]
