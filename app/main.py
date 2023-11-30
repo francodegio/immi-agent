@@ -5,6 +5,8 @@ import requests
 
 import streamlit as st
 
+from time import sleep
+
 from requests.exceptions import ConnectionError
 
 
@@ -63,46 +65,64 @@ def map_document_to_link(source_document: str) -> str:
             result = mapping[visa_number[0]]
     
     return result
-    
+
 
 
 ##### STREAMLIT APP #####
 st.title("Australia's Department of Home Affairs - Virtual Assistant")
 
 if "server_started" not in st.session_state:
-    st.session_state['server_started'] = check_server()
-    if st.session_state['server_started'] == False:
-        start_server()
-        st.session_state['server_started'] = True
+    # st.session_state['server_started'] = check_server()
+    st.session_state['server_started'] = False
+
+if not st.session_state['server_started']:
+    start_server()
+
 
 if "messages" not in st.session_state.keys():
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "How may I assist you today?"
+            "content": "How may I assist you today?",
+            "source_documents": []
         }
     ]
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        st.markdown(parse_response(
+                {
+                    "answer": message["content"],
+                    "source_documents": message.get("source_documents", [])
+                }
+            )
+        )
 
 
 if prompt := st.chat_input("Write a question related to Australian visas"):
     st.session_state.messages.append(
-        {"role": "user", "content": prompt}
+        {"role": "user", "content": prompt, "source_documents": []}
     )
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        full_response = ""
-        response = get_answer(prompt, st.session_state.messages)
-        full_response += parse_response(response)
-        message_placeholder.markdown(full_response + "▌")
+        response = get_answer(prompt, st.session_state.messages[:-1])
+        full_response = parse_response(response)
+        clean_response = ""
+        for letter in full_response:
+            clean_response += letter
+            message_placeholder.markdown(clean_response + "▌")
+            sleep(.005)
         message_placeholder.markdown(full_response)
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    st.session_state.messages.append(
+        {
+            "role": "assistant", 
+            "content": response['answer'],
+            "source_documents": response["source_documents"]
+        }
+    )
 
 ## add a button that clears the chat
 def clear_chat_history():
@@ -114,4 +134,5 @@ def clear_chat_history():
     ]
 
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
+
 

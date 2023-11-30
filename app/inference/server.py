@@ -1,12 +1,12 @@
 import uvicorn
-import yaml
 import traceback
 from fastapi import FastAPI, HTTPException
 from time import time
-from definitions import (
+from .definitions import (
     Input,
     Output,
-    ChatBot
+    ChatBot,
+    format_history
 )
 
 
@@ -49,15 +49,24 @@ def predict(payload: Input):
         print(f"Received request: {payload.model_dump()}")
         print("Getting model...")
 
-        chatbot = get_model()
-        print("Done!")
+        # # chatbot = get_model()
+        # print("Done!")
+        chat_history = format_history(payload.chat_history)
+        print(f"prompt={payload.prompt},\nchat_history={chat_history}")
+        # print("Processing request...")
+        # result = chatbot.reply(
+        #     payload.prompt,
+        #     payload.chat_history
+        # )        
+        # print(f"Processed request in {time() - start} seconds")
 
-        print("Processing request...")
-        result = chatbot.reply(
-            payload.prompt,
-            payload.chat_history
-        )        
-        print(f"Processed request in {time() - start} seconds")
+        result = {
+            "answer": "this is a placeholder answer",
+            "source_documents": [
+                "../data/skilled-worker-189.md",
+                "../data/student-500.md"
+            ]
+        }
         return Output(**result)
     except MemoryError as e:
        traceback.print_exc()

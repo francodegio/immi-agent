@@ -1,6 +1,7 @@
 import yaml
 
 from typing import List, Dict, Optional, Tuple
+from copy import deepcopy
 
 from omegaconf import OmegaConf
 from langchain.callbacks.manager import CallbackManager
@@ -34,7 +35,7 @@ CONFIG = OmegaConf.create(
 ########################### DATA STRUCTURES ###########################
 class Input(BaseModel):
     prompt: str
-    chat_history: Optional[List[Tuple[str]]] = None
+    chat_history: Optional[List[Dict]] = None
 
 
 class Output(BaseModel):
@@ -167,3 +168,17 @@ class ChatBot:
         )
         return result
 
+
+def format_history(msg_history: list):
+    hist = deepcopy(msg_history)
+    _ = hist.pop(0)
+
+    chat_history = []
+    if len(hist) < 2:
+        return chat_history
+    
+    for i in range(0, len(hist)-1, 2):
+        chat_history.append(
+            (hist[i]['content'], hist[i+1]['content'])
+        )
+    return chat_history
