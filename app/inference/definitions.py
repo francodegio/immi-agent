@@ -31,6 +31,25 @@ CONFIG = OmegaConf.create(
     yaml.load(open("config/model.yaml"), Loader=yaml.FullLoader))
 
 
+########################### DATA STRUCTURES ###########################
+class Input(BaseModel):
+    prompt: str
+    chat_history: Optional[List[Tuple[str]]] = None
+
+
+class Output(BaseModel):
+    answer: str
+    source_documents: List[str]
+
+
+class ChatHistory(BaseModel):
+    chat_history: List[Tuple[str, str]] = Field(
+        ...,
+        extra={"widget": {"type": "chat"}}
+    )
+    question: str
+
+
 ############################ DEFINITIONS ############################
 def load_txt(path):
     with open(path, "r") as f:
@@ -148,21 +167,3 @@ class ChatBot:
         )
         return result
 
-
-########################### DATA STRUCTURES ###########################
-class Input(BaseModel):
-    prompt: str
-    chat_history: Optional[List[Tuple[str]]] = None
-
-
-class Output(BaseModel):
-    answer: str
-    source_documents: List[str]
-
-
-class ChatHistory(BaseModel):
-    chat_history: List[Tuple[str, str]] = Field(
-        ...,
-        extra={"widget": {"type": "chat"}}
-    )
-    question: str
