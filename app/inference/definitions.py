@@ -137,22 +137,22 @@ class ChatBot:
             _inputs | self.ANSWER_PROMPT | self.model | StrOutputParser() | similarity
         )
 
-    def reply(self, prompt: str, chat_history: Optional[List[Dict]] = None):
+    def reply(
+            self,
+            prompt: str,
+            chat_history: Optional[List[Tuple[str]]] = None
+        ) -> Output:
         chat_history = [] if chat_history is None else chat_history
         result = self.chain.invoke(
-            {"question": prompt, "chat_history": chat_history})
-        return {
-            "answer": result["answer"],
-            "source_documents": [
-                x.metadata.get("source") for x in result["source_documents"]
-            ],
-        }
+            {"question": prompt, "chat_history": chat_history}
+        )
+        return result
 
 
 ########################### DATA STRUCTURES ###########################
 class Input(BaseModel):
     prompt: str
-    chat_history: Optional[List[Dict]] = None
+    chat_history: Optional[List[Tuple[str]]] = None
 
 
 class Output(BaseModel):
