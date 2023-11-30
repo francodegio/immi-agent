@@ -48,25 +48,15 @@ def predict(payload: Input):
         start = time()
         print(f"Received request: {payload.model_dump()}")
         print("Getting model...")
-
-        # # chatbot = get_model()
-        # print("Done!")
+        chatbot = get_model()
+        print("Done!")
         chat_history = format_history(payload.chat_history)
-        print(f"prompt={payload.prompt},\nchat_history={chat_history}")
-        # print("Processing request...")
-        # result = chatbot.reply(
-        #     payload.prompt,
-        #     payload.chat_history
-        # )        
-        # print(f"Processed request in {time() - start} seconds")
-
-        result = {
-            "answer": "this is a placeholder answer",
-            "source_documents": [
-                "../data/skilled-worker-189.md",
-                "../data/student-500.md"
-            ]
-        }
+        print("Processing request...")
+        result = chatbot.reply(
+            payload.prompt,
+            chat_history
+        )        
+        print(f"Processed request in {time() - start} seconds")
         return Output(**result)
     except MemoryError as e:
        traceback.print_exc()
